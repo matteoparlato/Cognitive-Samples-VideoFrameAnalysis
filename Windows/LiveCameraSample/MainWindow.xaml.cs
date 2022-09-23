@@ -42,12 +42,10 @@ using System.Windows.Controls;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using Microsoft.Azure.CognitiveServices.Vision.ComputerVision;
-using Microsoft.Azure.CognitiveServices.Vision.Face;
-using Newtonsoft.Json.Linq;
+using Microsoft.Azure.CognitiveServices.Vision.ComputerVision.Models;
 using OpenCvSharp;
 using OpenCvSharp.Extensions;
 using VideoFrameAnalyzer;
-using VisionAPI = Microsoft.Azure.CognitiveServices.Vision.ComputerVision;
 
 namespace LiveCameraSample
 {
@@ -56,7 +54,7 @@ namespace LiveCameraSample
     /// </summary>
     public partial class MainWindow : System.Windows.Window, IDisposable
     {
-        private VisionAPI.ComputerVisionClient _visionClient = null;
+        private ComputerVisionClient _visionClient = null;
         private readonly FrameGrabber<LiveCameraResult> _grabber;
         private static readonly ImageEncodingParam[] s_jpegParams = {
             new ImageEncodingParam(ImwriteFlags.JpegQuality, 60)
@@ -112,7 +110,7 @@ namespace LiveCameraSample
                     {
                         string apiName = "";
                         string message = e.Exception.Message;
-                        var visionEx = e.Exception as VisionAPI.Models.ComputerVisionErrorException;
+                        var visionEx = e.Exception as ComputerVisionErrorException;
                         if (visionEx != null)
                         {
                             apiName = "Computer Vision";
@@ -146,7 +144,14 @@ namespace LiveCameraSample
             // Encode image. 
             var jpg = frame.Image.ToMemoryStream(".jpg", s_jpegParams);
             // Submit image to API. 
-            var tagResult = await _visionClient.TagImageInStreamAsync(jpg);
+
+            List<VisualFeatureTypes> features = new List<VisualFeatureTypes>()
+            {
+                VisualFeatureTypes.Tags, VisualFeatureTypes.Color
+            };
+
+            var tagResult = await _visionClient.AnalyzeImageInStreamAsync(jpg, visualFeatures: features);
+
             // Output. 
             return new LiveCameraResult { Tags = tagResult.Tags.ToArray() };
         }
@@ -227,7 +232,7 @@ namespace LiveCameraSample
             Properties.Settings.Default.VisionAPIKey = Properties.Settings.Default.VisionAPIKey.Trim();
 
             // Create API clients.
-            _visionClient = new VisionAPI.ComputerVisionClient(new VisionAPI.ApiKeyServiceClientCredentials(Properties.Settings.Default.VisionAPIKey))
+            _visionClient = new ComputerVisionClient(new ApiKeyServiceClientCredentials(Properties.Settings.Default.VisionAPIKey))
             {
                 Endpoint = Properties.Settings.Default.VisionAPIHost
             };
