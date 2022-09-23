@@ -47,7 +47,6 @@ using Newtonsoft.Json.Linq;
 using OpenCvSharp;
 using OpenCvSharp.Extensions;
 using VideoFrameAnalyzer;
-using FaceAPI = Microsoft.Azure.CognitiveServices.Vision.Face;
 using VisionAPI = Microsoft.Azure.CognitiveServices.Vision.ComputerVision;
 
 namespace LiveCameraSample
@@ -57,7 +56,6 @@ namespace LiveCameraSample
     /// </summary>
     public partial class MainWindow : System.Windows.Window, IDisposable
     {
-        private FaceAPI.FaceClient _faceClient = null;
         private VisionAPI.ComputerVisionClient _visionClient = null;
         private readonly FrameGrabber<LiveCameraResult> _grabber;
         private static readonly ImageEncodingParam[] s_jpegParams = {
@@ -114,14 +112,8 @@ namespace LiveCameraSample
                     {
                         string apiName = "";
                         string message = e.Exception.Message;
-                        var faceEx = e.Exception as FaceAPI.Models.APIErrorException;
                         var visionEx = e.Exception as VisionAPI.Models.ComputerVisionErrorException;
-                        if (faceEx != null)
-                        {
-                            apiName = "Face";
-                            message = faceEx.Message;
-                        }
-                        else if (visionEx != null)
+                        if (visionEx != null)
                         {
                             apiName = "Computer Vision";
                             message = visionEx.Message;
@@ -168,16 +160,6 @@ namespace LiveCameraSample
 
             if (result != null)
             {
-                // See if we have local face detections for this image.
-                var clientFaces = (OpenCvSharp.Rect[])frame.UserData;
-                if (clientFaces != null && result.Faces != null)
-                {
-                    // If so, then the analysis results might be from an older frame. We need to match
-                    // the client-side face detections (computed on this frame) with the analysis
-                    // results (computed on the older frame) that we want to display. 
-                    MatchAndReplaceFaceRectangles(result.Faces, clientFaces);
-                }
-
                 visImage = Visualization.DrawFaces(visImage, result.Faces, result.CelebrityNames);
                 visImage = Visualization.DrawTags(visImage, result.Tags);
             }
@@ -284,46 +266,6 @@ namespace LiveCameraSample
             e.Handled = true;
         }
 
-        private FaceAPI.Models.DetectedFace CreateFace(VisionAPI.Models.FaceRectangle rect)
-        {
-            return new FaceAPI.Models.DetectedFace
-            {
-                FaceRectangle = new FaceAPI.Models.FaceRectangle
-                {
-                    Left = rect.Left,
-                    Top = rect.Top,
-                    Width = rect.Width,
-                    Height = rect.Height
-                }
-            };
-        }
-
-        private void MatchAndReplaceFaceRectangles(FaceAPI.Models.DetectedFace[] faces, OpenCvSharp.Rect[] clientRects)
-        {
-            // Use a simple heuristic for matching the client-side faces to the faces in the
-            // results. Just sort both lists left-to-right, and assume a 1:1 correspondence. 
-
-            // Sort the faces left-to-right. 
-            var sortedResultFaces = faces
-                .OrderBy(f => f.FaceRectangle.Left + 0.5 * f.FaceRectangle.Width)
-                .ToArray();
-
-            // Sort the clientRects left-to-right.
-            var sortedClientRects = clientRects
-                .OrderBy(r => r.Left + 0.5 * r.Width)
-                .ToArray();
-
-            // Assume that the sorted lists now corrrespond directly. We can simply update the
-            // FaceRectangles in sortedResultFaces, because they refer to the same underlying
-            // objects as the input "faces" array. 
-            for (int i = 0; i < Math.Min(faces.Length, clientRects.Length); i++)
-            {
-                // convert from OpenCvSharp rectangles
-                OpenCvSharp.Rect r = sortedClientRects[i];
-                sortedResultFaces[i].FaceRectangle = new FaceAPI.Models.FaceRectangle { Left = r.Left, Top = r.Top, Width = r.Width, Height = r.Height };
-            }
-        }
-
         private bool disposedValue = false; // To detect redundant calls
 
         protected virtual void Dispose(bool disposing)
@@ -334,7 +276,6 @@ namespace LiveCameraSample
                 {
                     _grabber?.Dispose();
                     _visionClient?.Dispose();
-                    _faceClient?.Dispose();
                     _localFaceDetector?.Dispose();
                 }
 
