@@ -71,11 +71,7 @@ namespace LiveCameraSample
 
         public enum AppMode
         {
-            Faces,
-            Emotions,
-            EmotionsWithClientFaceDetect,
-            Tags,
-            Celebrities
+            Tags
         }
 
         public MainWindow()
@@ -89,14 +85,6 @@ namespace LiveCameraSample
             // Set up a listener for when the client receives a new frame.
             _grabber.NewFrameProvided += (s, e) =>
             {
-                if (_mode == AppMode.EmotionsWithClientFaceDetect)
-                {
-                    // Local face detection. 
-                    var rects = _localFaceDetector.DetectMultiScale(e.Frame.Image);
-                    // Attach faces to frame. 
-                    e.Frame.UserData = rects;
-                }
-
                 // The callback may occur on a different thread, so we must use the
                 // MainWindow.Dispatcher when manipulating the UI. 
                 this.Dispatcher.BeginInvoke((Action)(() =>
@@ -111,12 +99,6 @@ namespace LiveCameraSample
                         RightImage.Source = VisualizeResult(e.Frame);
                     }
                 }));
-
-                // See if auto-stop should be triggered. 
-                if (Properties.Settings.Default.AutoStopEnabled && (DateTime.Now - _startTime) > Properties.Settings.Default.AutoStopTime)
-                {
-                    _grabber.StopProcessingAsync().GetAwaiter().GetResult();
-                }
             };
 
             // Set up a listener for when the client receives a new result from an API call. 
@@ -163,64 +145,6 @@ namespace LiveCameraSample
             _localFaceDetector.Load("Data/haarcascade_frontalface_alt2.xml");
         }
 
-        /// <summary> Function which submits a frame to the Face API. </summary>
-        /// <param name="frame"> The video frame to submit. </param>
-        /// <returns> A <see cref="Task{LiveCameraResult}"/> representing the asynchronous API call,
-        ///     and containing the faces returned by the API. </returns>
-        private async Task<LiveCameraResult> FacesAnalysisFunction(VideoFrame frame)
-        {
-            // Encode image. 
-            var jpg = frame.Image.ToMemoryStream(".jpg", s_jpegParams);
-            // Submit image to API. 
-            var attrs = new List<FaceAPI.Models.FaceAttributeType> {
-                FaceAPI.Models.FaceAttributeType.Age,
-                FaceAPI.Models.FaceAttributeType.Gender,
-                FaceAPI.Models.FaceAttributeType.HeadPose
-            };
-            var faces = await _faceClient.Face.DetectWithStreamAsync(jpg, returnFaceAttributes: attrs);
-            // Count the API call. 
-            Properties.Settings.Default.FaceAPICallCount++;
-            // Output. 
-            return new LiveCameraResult { Faces = faces.ToArray() };
-        }
-
-        /// <summary> Function which submits a frame to the Emotion API. </summary>
-        /// <param name="frame"> The video frame to submit. </param>
-        /// <returns> A <see cref="Task{LiveCameraResult}"/> representing the asynchronous API call,
-        ///     and containing the emotions returned by the API. </returns>
-        private async Task<LiveCameraResult> EmotionAnalysisFunction(VideoFrame frame)
-        {
-            // Encode image. 
-            var jpg = frame.Image.ToMemoryStream(".jpg", s_jpegParams);
-            // Submit image to API. 
-            FaceAPI.Models.DetectedFace[] faces = null;
-
-            // See if we have local face detections for this image.
-            var localFaces = (OpenCvSharp.Rect[])frame.UserData;
-            if (localFaces == null || localFaces.Count() > 0)
-            {
-                // If localFaces is null, we're not performing local face detection.
-                // Use Cognigitve Services to do the face detection.
-                Properties.Settings.Default.FaceAPICallCount++;
-                faces = (await _faceClient.Face.DetectWithStreamAsync(
-                    jpg,
-                    returnFaceId: false,
-                    returnFaceLandmarks: false,
-                    returnFaceAttributes: new FaceAPI.Models.FaceAttributeType[1] { FaceAPI.Models.FaceAttributeType.Emotion })).ToArray();
-            }
-            else
-            {
-                // Local face detection found no faces; don't call Cognitive Services.
-                faces = new FaceAPI.Models.DetectedFace[0];
-            }
-
-            // Output. 
-            return new LiveCameraResult
-            {
-                Faces = faces
-            };
-        }
-
         /// <summary> Function which submits a frame to the Computer Vision API for tagging. </summary>
         /// <param name="frame"> The video frame to submit. </param>
         /// <returns> A <see cref="Task{LiveCameraResult}"/> representing the asynchronous API call,
@@ -231,35 +155,8 @@ namespace LiveCameraSample
             var jpg = frame.Image.ToMemoryStream(".jpg", s_jpegParams);
             // Submit image to API. 
             var tagResult = await _visionClient.TagImageInStreamAsync(jpg);
-            // Count the API call. 
-            Properties.Settings.Default.VisionAPICallCount++;
             // Output. 
             return new LiveCameraResult { Tags = tagResult.Tags.ToArray() };
-        }
-
-        /// <summary> Function which submits a frame to the Computer Vision API for celebrity
-        ///     detection. </summary>
-        /// <param name="frame"> The video frame to submit. </param>
-        /// <returns> A <see cref="Task{LiveCameraResult}"/> representing the asynchronous API call,
-        ///     and containing the celebrities returned by the API. </returns>
-        private async Task<LiveCameraResult> CelebrityAnalysisFunction(VideoFrame frame)
-        {
-            // Encode image. 
-            var jpg = frame.Image.ToMemoryStream(".jpg", s_jpegParams);
-            // Submit image to API. 
-            var domainModelResults = await _visionClient.AnalyzeImageByDomainInStreamAsync("celebrities", jpg);
-            // Count the API call. 
-            Properties.Settings.Default.VisionAPICallCount++;
-            // Output. 
-            var jobject = domainModelResults.Result as JObject;
-            var celebs = jobject.ToObject<VisionAPI.Models.CelebrityResults>().Celebrities;
-            return new LiveCameraResult
-            {
-                // Extract face rectangles from results. 
-                Faces = celebs.Select(c => CreateFace(c.FaceRectangle)).ToArray(),
-                // Extract celebrity names from results. 
-                CelebrityNames = celebs.Select(c => c.Name).ToArray()
-            };
         }
 
         private BitmapSource VisualizeResult(VideoFrame frame)
@@ -327,23 +224,8 @@ namespace LiveCameraSample
             _mode = modes[comboBox.SelectedIndex];
             switch (_mode)
             {
-                case AppMode.Faces:
-                    _grabber.AnalysisFunction = FacesAnalysisFunction;
-                    break;
-                case AppMode.Emotions:
-                    _grabber.AnalysisFunction = EmotionAnalysisFunction;
-                    break;
-                case AppMode.EmotionsWithClientFaceDetect:
-                    // Same as Emotions, except we will display the most recent faces combined with
-                    // the most recent API results. 
-                    _grabber.AnalysisFunction = EmotionAnalysisFunction;
-                    _fuseClientRemoteResults = true;
-                    break;
                 case AppMode.Tags:
                     _grabber.AnalysisFunction = TaggingAnalysisFunction;
-                    break;
-                case AppMode.Celebrities:
-                    _grabber.AnalysisFunction = CelebrityAnalysisFunction;
                     break;
                 default:
                     _grabber.AnalysisFunction = null;
@@ -360,14 +242,9 @@ namespace LiveCameraSample
             }
 
             // Clean leading/trailing spaces in API keys. 
-            Properties.Settings.Default.FaceAPIKey = Properties.Settings.Default.FaceAPIKey.Trim();
             Properties.Settings.Default.VisionAPIKey = Properties.Settings.Default.VisionAPIKey.Trim();
 
             // Create API clients.
-            _faceClient = new FaceAPI.FaceClient(new FaceAPI.ApiKeyServiceClientCredentials(Properties.Settings.Default.FaceAPIKey))
-            {
-                Endpoint = Properties.Settings.Default.FaceAPIHost
-            };
             _visionClient = new VisionAPI.ComputerVisionClient(new VisionAPI.ApiKeyServiceClientCredentials(Properties.Settings.Default.VisionAPIKey))
             {
                 Endpoint = Properties.Settings.Default.VisionAPIHost
