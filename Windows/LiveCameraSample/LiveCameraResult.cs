@@ -42,5 +42,8 @@ namespace LiveCameraSample
         public FaceAPI.DetectedFace[] Faces { get; set; } = null;
         public string[] CelebrityNames { get; set; } = null;
         public VisionAPI.ImageTag[] Tags { get; set; } = null;
+        public string OCR { get; set; } = null;
+        public VisionAPI.ColorInfo Colors { get; set; } = null;
+
     }
 }
