@@ -34,6 +34,9 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Drawing.Imaging;
+using System.Drawing;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -202,6 +205,14 @@ namespace LiveCameraSample
         {
             // Draw any results on top of the image. 
             BitmapSource visImage = frame.Image.ToBitmapSource();
+            Bitmap bitmapimage = frame.Image.ToBitmap();
+
+            //
+            System.IO.MemoryStream ms = new MemoryStream();
+            bitmapimage.Save(ms, ImageFormat.Jpeg);
+            byte[] byteImage = ms.ToArray();
+            var SigBase64 = Convert.ToBase64String(byteImage); // Get Base64
+            //
 
             var result = _latestResultsToDisplay;
 
@@ -211,9 +222,9 @@ namespace LiveCameraSample
                 visImage = Visualization.DrawTags(visImage, result.Tags);
             }
 
-            MessageArea.Text = string.Format(result.OCR + " " + "[{0}]", string.Join(", ", result.Colors.DominantColorForeground) + " " + result.Objects[0]);
+            MessageArea.Text = string.Format(result.OCR + " " + "[{0}]", string.Join(", ", result.Colors.DominantColorForeground) + " " + result.Tags.First().Name);
 
-            SendDataToFlow(result.Objects[0].ObjectProperty, result.Colors.DominantColorForeground, result.OCR);
+            SendDataToFlow(result.Tags.First().Name, result.Colors.DominantColorForeground, result.OCR.Trim(), SigBase64);
 
             return visImage;
         }
@@ -339,14 +350,14 @@ namespace LiveCameraSample
             Dispose(true);
         }
 
-        public async void SendDataToFlow(string shape, string color, string description)
+        public async void SendDataToFlow(string shape, string color, string description, string image)
         {
             using (var client = new HttpClient())
             {
                 // https://prod-147.westeurope.logic.azure.com:443/workflows/ebe7580d94e0489cbdacc6864565be06/triggers/manual/paths/invoke?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=B0B2HrMpj-KuKEJzwDXXmdFsQXHpKN9tcI_idlxNb7g
                 client.BaseAddress = new Uri("https://prod-147.westeurope.logic.azure.com:443");
 
-                string json = JsonConvert.SerializeObject(new FlowModel(shape, color, description));
+                string json = JsonConvert.SerializeObject(new FlowModel(shape, color, description, image));
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
                 var result = await client.PostAsync("workflows/ebe7580d94e0489cbdacc6864565be06/triggers/manual/paths/invoke?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=B0B2HrMpj-KuKEJzwDXXmdFsQXHpKN9tcI_idlxNb7g", content);
                 string resultContent = await result.Content.ReadAsStringAsync();

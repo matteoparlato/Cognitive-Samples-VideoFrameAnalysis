@@ -11,12 +11,14 @@ namespace LiveCameraSample.Model
         public string shape { get; set; }
         public string color { get; set; }
         public string description { get; set; }
+        public string image { get; set; }
 
-        public FlowModel(string shape, string color, string description)
+        public FlowModel(string shape, string color, string description, string image)
         {
             this.shape = shape;
             this.color = color;
             this.description = description;
+            this.image = image;
         }
     }
 }
