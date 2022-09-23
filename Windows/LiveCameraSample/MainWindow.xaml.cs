@@ -110,7 +110,7 @@ namespace LiveCameraSample
                     {
                         string apiName = "";
                         string message = e.Exception.Message;
-                        var visionEx = e.Exception as ComputerVisionErrorException;
+                        var visionEx = e.Exception;
                         if (visionEx != null)
                         {
                             apiName = "Computer Vision";
@@ -145,7 +145,7 @@ namespace LiveCameraSample
             var jpg = frame.Image.ToMemoryStream(".jpg", s_jpegParams);
             // Submit image to API. 
 
-            List<VisualFeatureTypes> features = new List<VisualFeatureTypes>()
+            List<VisualFeatureTypes?> features = new List<VisualFeatureTypes?>()
             {
                 VisualFeatureTypes.Tags, VisualFeatureTypes.Color
             };
