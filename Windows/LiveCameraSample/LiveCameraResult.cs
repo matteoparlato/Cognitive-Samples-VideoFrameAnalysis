@@ -45,5 +45,7 @@ namespace LiveCameraSample
         public string OCR { get; set; } = null;
         public VisionAPI.ColorInfo Colors { get; set; } = null;
 
+        public VisionAPI.DetectedObject[] Objects { get; set; } = null;
+
     }
 }

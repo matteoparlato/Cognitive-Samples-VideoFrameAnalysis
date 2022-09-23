@@ -10,7 +10,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="35" />
             <RowDefinition Height="*" />
-            <RowDefinition Height="35" />
+            <RowDefinition Height="auto" />
         </Grid.RowDefinitions>
         <StackPanel Orientation="Horizontal" Grid.Row="0" Name="ButtonBar">
             <ComboBox x:Name="CameraList" Width="100" Margin="5,5,0,5" Loaded="CameraList_Loaded" />
@@ -55,6 +55,6 @@
                 <Button Margin="5" Content="Save" Click="SaveSettingsButton_Click" />
             </StackPanel>
         </Grid>
-        <TextBlock Name="MessageArea" Margin="5" Grid.Row="2" VerticalAlignment="Center" />
+        <TextBlock Name="MessageArea" Margin="5" Grid.Row="2" VerticalAlignment="Center" Height="100" />
     </Grid>
 </Window>

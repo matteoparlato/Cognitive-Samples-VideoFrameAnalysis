@@ -36,6 +36,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Net;
+using System.Net.Http;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -43,8 +44,11 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
+using LiveCameraSample.Model;
 using Microsoft.Azure.CognitiveServices.Vision.ComputerVision;
 using Microsoft.Azure.CognitiveServices.Vision.ComputerVision.Models;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using OpenCvSharp;
 using OpenCvSharp.Extensions;
 using VideoFrameAnalyzer;
@@ -149,7 +153,7 @@ namespace LiveCameraSample
 
             List<VisualFeatureTypes?> features = new List<VisualFeatureTypes?>()
             {
-                VisualFeatureTypes.Tags, VisualFeatureTypes.Color
+                VisualFeatureTypes.Tags, VisualFeatureTypes.Color, VisualFeatureTypes.Categories, VisualFeatureTypes.Objects, VisualFeatureTypes.ImageType
             };
 
             var tagResult = await _visionClient.AnalyzeImageInStreamAsync(jpg, visualFeatures: features);
@@ -191,7 +195,7 @@ namespace LiveCameraSample
 
 
             // Output. 
-            return new LiveCameraResult { Tags = tagResult.Tags.ToArray(), Colors = tagResult.Color, OCR = stringBuilder.ToString() };
+            return new LiveCameraResult { Tags = tagResult.Tags.ToArray(), Colors = tagResult.Color, OCR = stringBuilder.ToString(), Objects = tagResult.Objects.ToArray() };
         }
 
         private BitmapSource VisualizeResult(VideoFrame frame)
@@ -207,7 +211,9 @@ namespace LiveCameraSample
                 visImage = Visualization.DrawTags(visImage, result.Tags);
             }
 
-            MessageArea.Text = string.Format(result.OCR + " " + "[{0}]", string.Join(", ", result.Colors.DominantColors));
+            MessageArea.Text = string.Format(result.OCR + " " + "[{0}]", string.Join(", ", result.Colors.DominantColorForeground) + " " + result.Objects[0]);
+
+            SendDataToFlow(result.Objects[0].ObjectProperty, result.Colors.DominantColorForeground, result.OCR);
 
             return visImage;
         }
@@ -331,6 +337,21 @@ namespace LiveCameraSample
         public void Dispose()
         {
             Dispose(true);
+        }
+
+        public async void SendDataToFlow(string shape, string color, string description)
+        {
+            using (var client = new HttpClient())
+            {
+                // https://prod-147.westeurope.logic.azure.com:443/workflows/ebe7580d94e0489cbdacc6864565be06/triggers/manual/paths/invoke?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=B0B2HrMpj-KuKEJzwDXXmdFsQXHpKN9tcI_idlxNb7g
+                client.BaseAddress = new Uri("https://prod-147.westeurope.logic.azure.com:443");
+
+                string json = JsonConvert.SerializeObject(new FlowModel(shape, color, description));
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+                var result = await client.PostAsync("workflows/ebe7580d94e0489cbdacc6864565be06/triggers/manual/paths/invoke?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=B0B2HrMpj-KuKEJzwDXXmdFsQXHpKN9tcI_idlxNb7g", content);
+                string resultContent = await result.Content.ReadAsStringAsync();
+                MessageArea.Text = json;
+            }
         }
     }
 }
