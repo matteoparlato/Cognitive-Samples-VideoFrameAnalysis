@@ -198,7 +198,7 @@ namespace LiveCameraSample
 
 
             // Output. 
-            return new LiveCameraResult { Tags = tagResult.Tags.ToArray(), Colors = tagResult.Color, OCR = stringBuilder.ToString(), Objects = tagResult.Objects.ToArray() };
+            return new LiveCameraResult { Tags = tagResult.Tags.ToArray(), Colors = tagResult.Color, OCR = stringBuilder.ToString().Trim(), Objects = tagResult.Objects.ToArray() };
         }
 
         private BitmapSource VisualizeResult(VideoFrame frame)
